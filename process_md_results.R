@@ -14,6 +14,9 @@
 
 process_md_results <- function(json_path=NULL, score_threshold=0.5){
 
+  # load dplyr for pipe function
+  library(dplyr)
+
   # load detections
   json_file <- rjson::fromJSON(file = json_path)
   md_results <- json_file$images
@@ -67,31 +70,34 @@ process_md_results <- function(json_path=NULL, score_threshold=0.5){
   # data processing
   md_df <- md_df %>%
     # convert numbers to numerics
-    mutate(conf = as.numeric(conf),
+    dplyr::mutate(conf = as.numeric(conf),
            x = as.numeric(x),
            y = as.numeric(y),
            w = as.numeric(w),
            h = as.numeric(h)) %>%
     # convert coordinates
-    mutate(XMin = (x - w)/2,
-           YMin = (y - h)/2,
+    dplyr::mutate(XMin = (x - w)/2,
+           YMin = (y + h)/2,
            XMax = (x + w)/2,
-           YMax = (y + h)/2) %>%
-    mutate(class = ifelse(class == "1", "animal",
+           YMax = (y - h)/2) %>%
+    dplyr::mutate(class = ifelse(class == "1", "animal",
                           ifelse(class == "2", "person",
                                  ifelse(class == "3", "vehicle", class)))) %>%
     # create a flag column
-    mutate(flag = NA)
+    dplyr::mutate(flag = NA)
 
   # flag any detections that are not animals
   md_df <- md_df %>%
-    mutate(flag = ifelse(class != "animal", "class_flag", flag))
+    dplyr::mutate(flag = ifelse(class != "animal", "class_flag", flag))
 
   # flag detections below acceptable confidence threshold
   md_df$conf <- round(md_df$conf, 2)
   md_df <- md_df %>%
-    mutate(flag = ifelse(conf < score_threshold,
+    dplyr::mutate(flag = ifelse(conf < score_threshold,
                          paste(flag, "conf_flag", sep = ", "), flag))
+
+  # add column for bbox coordinates
+  md_df$bbox.origin <- "UL"
 
   return(md_df)
 } #END
